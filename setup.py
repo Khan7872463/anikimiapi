@@ -21,7 +21,8 @@ setup(
         'bs4',
         'requests',
         'requests_html',
-        'lxml'
+        'lxml',
+        'lxml_html_clean'
     ],
     classifiers=[
         'Development Status :: 4 - Beta',
