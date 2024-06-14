@@ -1,11 +1,7 @@
-from requests_html import HTMLSession
-from bs4 import BeautifulSoup
 import requests
+from bs4 import BeautifulSoup
 from anikimiapi.data_classes import *
 from anikimiapi.error_handlers import *
-import re
-import lxml.html.clean as clean
-
 
 class AniKimi:
     """
@@ -39,16 +35,10 @@ class AniKimi:
             NetworkError: If there's a network connection error.
         """
         try:
-            url1 = f"{self.host}/search.html?keyword={query}"
-            session = HTMLSession()
-            response = session.get(url1)
-            response_html = response.text
-
-            # Clean the HTML content
-            cleaner = clean.Cleaner()
-            cleaned_html = cleaner.clean_html(response_html)
-
-            soup = BeautifulSoup(cleaned_html, 'html.parser')
+            url = f"{self.host}/search.html?keyword={query}"
+            response = requests.get(url)
+            response.raise_for_status()  # Raise error for bad response status
+            soup = BeautifulSoup(response.text, 'html.parser')
             animes = soup.find("ul", {"class": "items"}).find_all("li")
             res_list_search = []
             for anime in animes:
@@ -60,8 +50,8 @@ class AniKimi:
                 raise NoSearchResultsError("No Search Results found for the query")
             else:
                 return res_list_search
-        except requests.exceptions.ConnectionError:
-            raise NetworkError("Unable to connect to the Server, Check your connection")
+        except requests.exceptions.RequestException as e:
+            raise NetworkError(f"Request failed: {e}")
 
     def get_details(self, animeid: str) -> MediaInfoObject:
         """
@@ -80,15 +70,10 @@ class AniKimi:
         try:
             animelink = f'{self.host}/category/{animeid}'
             response = requests.get(animelink)
-            plainText = response.text
-
-            # Clean the HTML content
-            cleaner = clean.Cleaner()
-            cleaned_html = cleaner.clean_html(plainText)
-
-            soup = BeautifulSoup(cleaned_html, "lxml")
+            response.raise_for_status()  # Raise error for bad response status
+            soup = BeautifulSoup(response.text, "html.parser")
             source_url = soup.find("div", {"class": "anime_info_body_bg"}).img
-            imgg = source_url.get('src')
+            imgg = source_url.get('src') if source_url else None
             tit_url = soup.find("div", {"class": "anime_info_body_bg"}).h1.string
             lis = soup.find_all('p', {"class": "type"})
             plot_sum = lis[1]
@@ -125,8 +110,8 @@ class AniKimi:
             return res_detail_search
         except AttributeError:
             raise InvalidAnimeIdError("Invalid animeid given")
-        except requests.exceptions.ConnectionError:
-            raise NetworkError("Unable to connect to the Server, Check your connection")
+        except requests.exceptions.RequestException as e:
+            raise NetworkError(f"Request failed: {e}")
 
     def get_episode_link_advanced(self, animeid: str, episode_num: int) -> MediaLinksObject:
         """
@@ -149,13 +134,8 @@ class AniKimi:
             str_qry_final = animeid
             animelink = f'{self.host}/category/{str_qry_final}'
             response = requests.get(animelink)
-            plainText = response.text
-
-            # Clean the HTML content
-            cleaner = clean.Cleaner()
-            cleaned_html = cleaner.clean_html(plainText)
-
-            soup = BeautifulSoup(cleaned_html, "lxml")
+            response.raise_for_status()  # Raise error for bad response status
+            soup = BeautifulSoup(response.text, "html.parser")
             lnk = soup.find(id="episode_page")
             source_url = lnk.find("li").a
             anime_title = soup.find("div", {"class": "anime_info_body_bg"}).h1.string
@@ -169,12 +149,9 @@ class AniKimi:
                 'auth': self.auth_token
             }
             response = requests.get(url=url, cookies=cookies)
+            response.raise_for_status()  # Raise error for bad response status
             plaintext = response.text
-
-            # Clean the HTML content
-            cleaned_html = cleaner.clean_html(plaintext)
-
-            soup = BeautifulSoup(cleaned_html, "lxml")
+            soup = BeautifulSoup(plaintext, "html.parser")
             download_div = soup.find("div", {'class': 'cf-download'}).findAll('a')
             links_final = MediaLinksObject()
             for links in download_div:
@@ -221,11 +198,7 @@ class AniKimi:
                     links_final.link_doodstream = downlink
             res = requests.get(chumma_list[0])
             plain = res.text
-
-            # Clean the HTML content
-            cleaned_html = cleaner.clean_html(plain)
-
-            s = BeautifulSoup(cleaned_html, "lxml")
+            s = BeautifulSoup(plain, "html.parser")
             t = s.findAll('script')
             hdp_js = t[2].string
             hdp_link_initial = re.search("(?P<url>https?://[^\s]+)", hdp_js).group()
@@ -233,12 +206,13 @@ class AniKimi:
             return links_final
         except AttributeError:
             raise InvalidAnimeIdError("Invalid animeid or episode_num given")
-        except requests.exceptions.ConnectionError:
-            raise NetworkError("Unable to connect to the Server, Check your connection")
+        except requests.exceptions.RequestException as e:
+            raise NetworkError(f"Request failed: {e}")
         except TypeError:
-            raise InvalidTokenError("Invalid tokens passed, Check your tokens")            
+            raise InvalidTokenError("Invalid tokens passed, Check your tokens")
 
-def get_by_genres(self, genre_name: str, limit: int = 60) -> list:
+
+    def get_by_genres(self, genre_name: str, limit: int = 60) -> list:
         """
         Get anime by genres, The genre object has the following genres working,
 
@@ -274,7 +248,7 @@ def get_by_genres(self, genre_name: str, limit: int = 60) -> list:
         def pagination_helper(current_page_source: str, url: str, limit: int) -> None:
             """A recursive helper function which helps to successively scrape anime from following pages
                (if there are any) till limit is reached. """
-            soup = BeautifulSoup(current_page_source, "lxml")
+            soup = BeautifulSoup(current_page_source, "html.parser")
             next_page = soup.find("li", {"class": "selected"}).findNext('li')
 
             if next_page is not None:
@@ -282,12 +256,7 @@ def get_by_genres(self, genre_name: str, limit: int = 60) -> list:
                     next_page_value = next_page.a.get('data-page')
                     next_page_url = f'{url}{next_page_value}'
                     next_page_src = requests.get(next_page_url).text
-
-                    # Clean the HTML content
-                    cleaner = clean.Cleaner()
-                    cleaned_html = cleaner.clean_html(next_page_src)
-
-                    soup = BeautifulSoup(cleaned_html, "lxml")
+                    soup = BeautifulSoup(next_page_src, "html.parser")
 
                     # Next/subsequent page results
                     next_page_results = page_anime_scraper(soup)
@@ -304,13 +273,8 @@ def get_by_genres(self, genre_name: str, limit: int = 60) -> list:
         try:
             url = f"{self.host}/genre/{genre_name}?page="
             response = requests.get(url)
-            plainText = response.text
-
-            # Clean the HTML content
-            cleaner = clean.Cleaner()
-            cleaned_html = cleaner.clean_html(plainText)
-
-            soup = BeautifulSoup(cleaned_html, "lxml")
+            response.raise_for_status()  # Raise error for bad response status
+            soup = BeautifulSoup(response.text, "html.parser")
 
             # Starting page
             starting_page_results = page_anime_scraper(soup)
@@ -321,49 +285,44 @@ def get_by_genres(self, genre_name: str, limit: int = 60) -> list:
                     break
 
             if len(gen_ani) < limit:
-                pagination_helper(current_page_source=plainText, url=url, limit=limit)
+                pagination_helper(current_page_source=response.text, url=url, limit=limit)
 
             return gen_ani
 
         except (AttributeError, KeyError):
             raise InvalidGenreNameError("Invalid genre_name or page_num")
-        except requests.exceptions.ConnectionError:
-            raise NetworkError("Unable to connect to server")
+        except requests.exceptions.RequestException as e:
+            raise NetworkError(f"Request failed: {e}")
 
-def get_airing_anime(self, count=10) -> list:
-    """
-    Get the currently airing anime and their animeid.
+    def get_airing_anime(self, count=10) -> list:
+        """
+        Get the currently airing anime and their animeid.
 
-    Parameters:
-        count(``int`` | ``str``, *optional*):
-            The number of search results to be returned, Defaults to 10.
+        Parameters:
+            count(``int`` | ``str``, *optional*):
+                The number of search results to be returned, Defaults to 10.
 
-    Returns:
-        List of :obj:`-anikimiapi.data_classes.ResultObject`: On Success, the list of currently airing anime results is returned.
-    """
-    try:
-        if int(count) > 20:
-            raise CountError("count parameter cannot exceed 20")
-        else:
-            url = f"{self.host}"
-            response = requests.get(url)
-            response_html = response.text
-
-            # Clean the HTML content
-            cleaner = clean.Cleaner()
-            cleaned_html = cleaner.clean_html(response_html)
-
-            soup = BeautifulSoup(cleaned_html, 'lxml')
-            anime = soup.find("nav", {"class": "menu_series cron"}).find("ul")
-            air = []
-            for link in anime.find_all('a'):
-                airing_link = link.get('href')
-                name = link.get('title')  # name of the anime
-                link_parts = airing_link.split('/')
-                lnk_final = link_parts[2]  # animeid of anime
-                air.append(ResultObject(title=f"{name}", animeid=f"{lnk_final}"))
-            return air[:int(count)]
-    except (IndexError, AttributeError, TypeError):
-        raise AiringIndexError("No content found on the given page number")
-    except requests.exceptions.ConnectionError:
-        raise NetworkError("Unable to connect to server")
+        Returns:
+            List of :obj:`-anikimiapi.data_classes.ResultObject`: On Success, the list of currently airing anime results is returned.
+        """
+        try:
+            if int(count) > 20:
+                raise CountError("count parameter cannot exceed 20")
+            else:
+                url = f"{self.host}"
+                response = requests.get(url)
+                response.raise_for_status()  # Raise error for bad response status
+                soup = BeautifulSoup(response.text, 'html.parser')
+                anime = soup.find("nav", {"class": "menu_series cron"}).find("ul")
+                air = []
+                for link in anime.find_all('a'):
+                    airing_link = link.get('href')
+                    name = link.get('title')  # name of the anime
+                    link_parts = airing_link.split('/')
+                    lnk_final = link_parts[2]  # animeid of anime
+                    air.append(ResultObject(title=f"{name}", animeid=f"{lnk_final}"))
+                return air[:int(count)]
+        except (IndexError, AttributeError, TypeError):
+            raise AiringIndexError("No content found on the given page number")
+        except requests.exceptions.RequestException as e:
+            raise NetworkError(f"Request failed: {e}")
