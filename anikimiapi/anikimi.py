@@ -18,7 +18,7 @@ class AniKimi:
         """
         self.gogoanime_token = gogoanime_token
         self.auth_token = auth_token
-        self.host = "https://gogoanime.ai"
+        self.host = "https://anitaku.io/"
 
     def search_anime(self, query: str) -> list:
         """
@@ -76,6 +76,7 @@ class AniKimi:
             imgg = source_url.get('src') if source_url else None
             tit_url = soup.find("div", {"class": "anime_info_body_bg"}).h1.string
             lis = soup.find_all('p', {"class": "type"})
+            #lis = soup.find_all('a')
             plot_sum = lis[1]
             pl = plot_sum.get_text().split(':')
             pl.remove(pl[0])
