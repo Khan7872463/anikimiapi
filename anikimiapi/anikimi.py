@@ -1,4 +1,4 @@
-from requests_html import HTMLSession
+#from requests_html import HTMLSession
 from bs4 import BeautifulSoup
 import requests
 from anikimiapi.data_classes import *
@@ -78,8 +78,8 @@ class AniKimi:
         """
         try:
             url1 = f"{self.host}/search.html?keyword={query}"
-            session = HTMLSession()
-            response = session.get(url1)
+            #session = requests
+            response = requests.get(url1)
             response_html = response.text
             soup = BeautifulSoup(response_html, 'html.parser')
             animes = soup.find("ul", {"class": "items"}).find_all("li")
@@ -528,8 +528,8 @@ class AniKimi:
                 raise CountError("count parameter cannot exceed 20")
             else:
                 url = f"{self.host}"
-                session = HTMLSession()
-                response = session.get(url)
+                #session = HTMLSession()
+                response = requests.get(url)
                 response_html = response.text
                 soup = BeautifulSoup(response_html, 'html.parser')
                 anime = soup.find("nav", {"class": "menu_series cron"}).find("ul")
